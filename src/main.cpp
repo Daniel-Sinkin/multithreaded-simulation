@@ -13,6 +13,91 @@
 
 #include <iostream>
 
+constexpr const char *vertexShaderSource = "#version 330 core\n"
+                                           "layout (location = 0) in vec3 aPos;\n"
+                                           "void main()\n"
+                                           "{\n"
+                                           "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+                                           "}\0";
+
+struct Color {
+    float r = 0.1f;
+    float g = 0.1f;
+    float b = 0.1f;
+    float a = 0.1f;
+
+    auto rgb() -> float * { return &r; }
+    auto rgb() const -> const float * { return &r; }
+
+    auto rgba() -> float * { return &r; }
+    auto rgba() const -> const float * { return &r; }
+};
+
+struct Globals {
+    GLFWwindow *window = nullptr;
+    Color background_color;
+};
+inline Globals globals;
+
+auto _mainloop_imgui() -> void {
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    {
+        ImGui::Begin("Settings");
+        ImGui::ColorEdit3("Background Color", globals.background_color.rgb());
+        ImGui::End();
+    }
+
+    ImGui::Render();
+}
+
+auto _mainloop_handle_input() -> void {
+    glfwPollEvents();
+    if (glfwGetKey(globals.window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        glfwSetWindowShouldClose(globals.window, GLFW_TRUE);
+    }
+}
+
+auto _mainloop_render() -> void {
+    int display_w, display_h;
+    glfwGetFramebufferSize(globals.window, &display_w, &display_h);
+    glViewport(0, 0, display_w, display_h);
+
+    const float *bg = globals.background_color.rgba();
+    glClearColor(bg[0], bg[1], bg[2], bg[3]);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    float vertices[] = {
+        -0.5f,
+        -0.5f,
+        0.0f,
+        0.5f,
+        -0.5f,
+        0.0f,
+        0.0f,
+        0.5f,
+        0.0f,
+    };
+
+    GLuint VBO;
+    glGenBuffers(1, &VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+}
+
+auto mainloop_iteration() -> void {
+    _mainloop_imgui();
+
+    _mainloop_render();
+
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    glfwSwapBuffers(globals.window);
+
+    _mainloop_handle_input();
+}
+
 auto main(int argc, char **argv) -> int {
     if (glfwInit() == GLFW_FALSE) return 1;
 
@@ -27,17 +112,17 @@ auto main(int argc, char **argv) -> int {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 #endif
 
-    GLFWwindow *window = glfwCreateWindow(
+    globals.window = glfwCreateWindow(
         1280,
         720,
         "MyWindow",
         nullptr,
         nullptr);
-    if (window == nullptr) {
+    if (globals.window == nullptr) {
         glfwTerminate();
         return 1;
     }
-    glfwMakeContextCurrent(window);
+    glfwMakeContextCurrent(globals.window);
     glfwSwapInterval(1);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) return 1;
@@ -47,29 +132,17 @@ auto main(int argc, char **argv) -> int {
     ImGuiIO &io = ImGui::GetIO();
     (void)io;
     ImGui::StyleColorsDark();
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplGlfw_InitForOpenGL(globals.window, true);
     ImGui_ImplOpenGL3_Init("#version 410");
 
-    while (!glfwWindowShouldClose(window)) {
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-        ImGui::Render();
-
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        glfwPollEvents();
-        glfwSwapBuffers(window);
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            glfwSetWindowShouldClose(window, GLFW_TRUE);
-        }
+    while (!glfwWindowShouldClose(globals.window)) {
+        mainloop_iteration();
     }
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-    glfwDestroyWindow(window);
+    glfwDestroyWindow(globals.window);
     glfwTerminate();
 
     return 0;
